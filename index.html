@@ -124,6 +124,9 @@ ul{margin:0;padding:0;list-style:none}
   transition:opacity .3s;
 }
 .nav.hush{opacity:.4}
+/* display:flex above outranks the UA rule for [hidden], so say it explicitly.
+   Without this the nav shows during onboarding and setup can be skipped. */
+.nav[hidden]{display:none}
 .nav button{
   flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;
   font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
@@ -410,6 +413,13 @@ button.mic:active{transform:scale(.985)}
 .day .dh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:13px}
 .day .dn{font-family:'Bricolage Grotesque',Georgia,serif;font-weight:800;font-size:21px;letter-spacing:-.025em;text-transform:uppercase}
 .day .dd{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em}
+.day{cursor:pointer}
+.day .edit{
+  font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--coral-ink);opacity:0;transition:opacity .15s;margin-left:4px;
+}
+.day:hover .edit,.day:focus-visible .edit{opacity:1}
+@media (hover:none){.day .edit{opacity:.75}}
 .who{display:grid;gap:5px;margin-bottom:13px}
 .who .w{display:grid;grid-template-columns:74px 1fr;gap:10px;align-items:baseline;font-size:15px}
 .who .w b{font-size:11px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
@@ -513,28 +523,8 @@ button.mic:active{transform:scale(.985)}
 }
 .toast.on{opacity:1;transform:translate(-50%,0)}
 
-/* ---- prototype bar ---- */
-.pb{
-  position:fixed;top:0;left:0;right:0;z-index:90;background:#1A1520;color:#EFE7DE;
-  font-size:12px;border-bottom:1px solid #332B3A;
-}
-.pb .pbh{display:flex;align-items:center;gap:10px;padding:7px 12px;cursor:pointer}
-.pb .pbh b{font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#9C8FA6}
-.pb .pbh span{margin-left:auto;font-size:11px;color:#9C8FA6}
-.pb .pbb{display:none;padding:2px 12px 12px;gap:9px;flex-direction:column}
-.pb.open .pbb{display:flex}
-.pb .grp{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.pb .grp>b{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#7E7188;min-width:52px}
-.pb .grp button{
-  padding:6px 11px;border-radius:100px;font-size:11px;font-weight:600;
-  background:#292231;color:#B5A9BD;
-}
-.pb .grp button.on{background:#EFE7DE;color:#1A1520}
-body.pb-on .app{padding-top:34px}
-body.pb-on .pb.open ~ .app{padding-top:0}
-
 @media print{
-  .pb,.nav,.scrim,.sheet,.takeover,.noprint{display:none!important}
+  .nav,.scrim,.sheet,.takeover,.noprint{display:none!important}
   body,.app{background:#fff;color:#000;box-shadow:none;max-width:none}
   .screen{display:none!important;padding:0}
   .screen.on{display:block!important}
@@ -549,42 +539,6 @@ body.pb-on .pb.open ~ .app{padding-top:0}
     <p style="margin:8px 0 0">You are viewing this file in a preview window, which does not run the app. On a computer, double-click the file. On Android, tap the menu and choose Open in Chrome.</p>
   </div>
 </noscript>
-
-<!-- prototype-only controls, not product UI -->
-<div class="pb" id="pb">
-  <div class="pbh" id="pbh"><b>Prototype controls</b><span id="pbState">tap to open</span></div>
-  <div class="pbb">
-    <div class="grp"><b>Stage</b>
-      <button data-stage="prep">Pre-return</button>
-      <button data-stage="first">First week back</button>
-      <button data-stage="settled">Settled</button>
-      <button data-stage="quiet">Nothing to do</button>
-    </div>
-    <div class="grp"><b>Countdown</b>
-      <button data-days="17">17 days</button>
-      <button data-days="5">5 days</button>
-      <button data-days="1">Tomorrow</button>
-    </div>
-    <div class="grp"><b>Voice</b>
-      <button data-voice="soft">Soft</button>
-      <button data-voice="cheeky">Cheeky</button>
-      <button data-voice="fullSend">Full send</button>
-    </div>
-    <div class="grp"><b>Theme</b>
-      <button data-theme="light">Light</button>
-      <button data-theme="dark">Dark</button>
-      <button data-theme="system">System</button>
-    </div>
-    <div class="grp"><b>Name</b>
-      <button data-name="UNLOADED.">UNLOADED.</button>
-      <button data-name="none">No name</button>
-    </div>
-    <div class="grp"><b>Reset</b>
-      <button data-do="onboard">Replay onboarding</button>
-      <button data-do="wipe">Wipe demo data</button>
-    </div>
-  </div>
-</div>
 
 <div class="app" id="app">
   <div class="screen" id="s-onboard"></div>
@@ -739,22 +693,43 @@ function t(key, vars){
 /* ==========================================================================
    SEED DATA  -  realistic, never lorem
    ========================================================================== */
-var PEOPLE = [
-  /* One warm family, not a rainbow. You are coral; everyone else supports. */
-  { id:"me",      name:"You",      full:"Lien",   initial:"L", color:"--coral",  isMe:true },
-  { id:"victor",  name:"Victor",   full:"Victor", initial:"V", color:"--apricot" },
-  { id:"grandma", name:"Grandma",  full:"Grandma",initial:"G", color:"--pink" },
-  { id:"daycare", name:"Daycare",  full:"Daycare",initial:"D", color:"--line", provider:true }
-];
-var CHILD = { name:"Mia" };
+/* People, child and the weekly routine live in state, not in constants: a
+   second household has to be able to exist. `me` is the one stable id. */
+var PERSON_COLORS = ["--apricot", "--pink", "--coral", "--line"];
 
-var ROUTINE = {
-  mon:{ me:["Office","9–5"],   victor:["Home",""],       care:["Daycare","8–5:30"], drop:"victor", pick:"me",     dinner:"victor" },
-  tue:{ me:["Office","9–5"],   victor:["Office","8–6"],  care:["Daycare","8–5:30"], drop:"me",     pick:"victor", dinner:"me" },
-  wed:{ me:["Home","9–5"],     victor:["Office","8–6"],  care:["Grandma","9–4"],    drop:"me",     pick:"victor", dinner:"victor" },
-  thu:{ me:["Office","9–5"],   victor:["Office","8–6"],  care:["Daycare","8–5:30"], drop:"victor", pick:"me",     dinner:"me" },
-  fri:{ me:["Home","9–3"],     victor:["Home",""],       care:["Daycare","8–5:30"], drop:"me",     pick:"me",     dinner:"victor" }
-};
+function people(){ return (S && S.people) || []; }
+function activePeople(){ return people().filter(function(p){ return p.active !== false; }); }
+function routine(){ return (S && S.routine) || {}; }
+/* "Send it to Sam" reads better than a generic label, when there is a Sam. */
+function sendItTo(){
+  var other = activePeople().filter(function(p){ return !p.isMe && !p.provider; })[0];
+  return other ? "Send it to " + other.full : "Share this week";
+}
+function childName(){ return (S && S.child && S.child.name) || "your child"; }
+
+function makePerson(full, opts){
+  opts = opts || {};
+  return {
+    id: opts.id || uid(),
+    full: full,
+    name: opts.isMe ? "You" : full,
+    initial: (full || "?").trim().charAt(0).toUpperCase(),
+    color: opts.color || PERSON_COLORS[people().length % PERSON_COLORS.length],
+    isMe: !!opts.isMe,
+    provider: !!opts.provider,
+    active: true
+  };
+}
+
+/* An empty week: worked days come from onboarding, everything else unset. */
+function blankRoutine(){
+  var r = {};
+  ["mon","tue","wed","thu","fri"].forEach(function(k){
+    r[k] = { work:{}, care:null, drop:null, pick:null, dinner:null };
+  });
+  return r;
+}
+
 var DAYS = [
   { k:"mon", n:"Monday" }, { k:"tue", n:"Tuesday" }, { k:"wed", n:"Wednesday" },
   { k:"thu", n:"Thursday" }, { k:"fri", n:"Friday" }
@@ -766,40 +741,6 @@ function R(id,title,cat,rem,dooer,back,critical){
   return { id:id, title:title, cat:cat, remember:rem, doer:dooer,
            backup:back || null, critical:!!critical, active:true };
 }
-var SEED_RESP = [
-  R("r1","Daycare supplies","Daycare","me","victor","me"),
-  R("r2","Daycare emails and notices","Daycare","me","me",null,true),
-  R("r3","Packing the daycare bag","Daycare","me","victor",null),
-  R("r4","Nappies and wipes stock","Daycare","me","me","victor"),
-  R("r5","Spare clothes in the right size","Daycare","me","me",null),
-  R("r6","Special daycare days","Daycare","me","me",null),
-  R("r7","Childcare invoice","Daycare","victor","victor","me"),
-  R("r8","Morning drop-off","Daycare","me","victor","grandma",true),
-  R("r9","Afternoon pickup","Daycare","me","victor","grandma",true),
-  R("r10","Clothing size changes","Mia","me","me",null),
-  R("r11","Medicine and Calpol supply","Mia","me","me",null,true),
-  R("r12","Health checks and immunisations","Mia","me","me",null),
-  R("r13","Groceries","Home","me","victor",null),
-  R("r14","Deciding what's for dinner","Home","me","me","victor"),
-  R("r15","Laundry","Home","victor","victor","me"),
-  R("r16","Household supplies","Home","victor","victor",null),
-  R("r17","Cleaning","Home","victor","victor","me"),
-  R("r18","The family calendar","Family admin","me","me",null),
-  R("r19","Birthdays and gifts","Family admin","me","me",null),
-  R("r20","Bills","Family admin","victor","victor","me"),
-  R("r21","Insurance and forms","Family admin","victor","victor",null),
-  R("r22","Car seat logistics","Work and logistics","me","victor","grandma",true),
-  R("r23","Who's on the emergency contact list","Work and logistics","me","me",null,true)
-];
-
-var SEED_DUMPS = [
-  { id:"d1", text:"need a bigger daycare sleep sack", ago:"2h" },
-  { id:"d2", text:"nappies running low", ago:"yesterday" },
-  { id:"d3", text:"book Mia's 12 month check", ago:"yesterday" },
-  { id:"d4", text:"daycare wants a photo for the wall thing", ago:"2d" },
-  { id:"d5", text:"office shoes that aren't trainers", ago:"3d" }
-];
-
 var SEED_SCEN = [
   { id:"s1", title:"Baby wakes sick", sub:"The one that costs two people a workday", ready:true,
     plan:{ first:"victor", second:"me", third:"grandma", note:"Grandma can usually do Tuesday or Thursday." } },
@@ -834,47 +775,47 @@ var SEED_RESET = [
 
 /* `label` is the thing that changed, `note` is what it does to the day.
    `needsCover` marks an exception nobody has picked up yet. */
-var SEED_EXC = [
-  { id:"e1", day:"thu", type:"Late meeting", label:"Late meeting",
-    note:"Grandma doing pickup", person:"grandma" },
-  { id:"e2", day:"fri", type:"Daycare thing", label:"Daycare closes at 4pm",
-    note:"Pickup still needs sorting", person:null, needsCover:true }
-];
-
-var SEED_RETURN = [
-  { id:"t1", t:"Who owns daycare pickup?", cat:"Childcare", done:false },
-  { id:"t2", t:"What's the sick-day plan?", cat:"Childcare", done:false },
-  { id:"t3", t:"What needs to be ready for Day One?", cat:"Work", done:false }
-];
-
-/* ==========================================================================
-   STATE
-   ========================================================================== */
 var STORE = "rtw_proto_v1";
 var S;
 
+/* A real first run: no household, no week, nothing pretending to be hers.
+   Onboarding fills this in. The demo is a separate, explicit choice. */
 function fresh(){
   return {
     voice: BRAND.defaultVoice,
     theme: "system",
     name: BRAND.name,
-    stage: "settled",
-    daysToReturn: 17,
-    onboarded: true,
+    returnDate: null,
+    returnedAlready: false,
+    returnStarted: null,
+    onboarded: false,
     revealSeen: false,
     resetDone: false,
-    resp: SEED_RESP.map(function(r){ return Object.assign({}, r); }),
-    dumps: SEED_DUMPS.slice(),
-    scen: SEED_SCEN.map(function(s){ return JSON.parse(JSON.stringify(s)); }),
+    child: { name: "" },
+    people: [],
+    routine: blankRoutine(),
+    resp: [],
+    dumps: [],
+    scen: SEED_SCEN.map(function(x){ return JSON.parse(JSON.stringify(x)); }),
     reset: SEED_RESET.map(function(c){ return Object.assign({}, c); }),
-    exc: SEED_EXC.slice(),
-    retTasks: SEED_RETURN.map(function(x){ return Object.assign({}, x); }),
+    exc: [],
+    retTasks: [],
     handedOver: 0,
-    ob: { back:null, days:["mon","tue","thu"], modes:{}, care:[], people:["me","victor","grandma"], stuck:null }
+    shareInitials: false,
+    ob: { myName:"", childName:"", back:null, days:[], modes:{}, care:[], extra:[], stuck:null }
   };
 }
+
 function load(){
-  try{ var raw = localStorage.getItem(STORE); if(raw){ var o = JSON.parse(raw); if(o && o.resp) return o; } }catch(e){}
+  try{
+    var raw = localStorage.getItem(STORE);
+    if(raw){
+      var o = JSON.parse(raw);
+      /* Anything saved before people/routine moved into state is unreadable
+         now, so start clean rather than half-render someone else's household. */
+      if(o && o.people && o.routine) return o;
+    }
+  }catch(e){}
   return fresh();
 }
 /* True only for the hosted bundle, where sibling files like privacy.html and
@@ -905,8 +846,11 @@ function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
   return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 function nl(s){ return esc(s).replace(/\n/g,"<br>"); }
-function person(id){ for(var i=0;i<PEOPLE.length;i++) if(PEOPLE[i].id===id) return PEOPLE[i]; return null; }
+function person(id){ var P = people(); for(var i=0;i<P.length;i++) if(P[i].id===id) return P[i]; return null; }
 function pname(id){ var p = person(id); return p ? p.name : "Not set"; }
+/* Care can be unset on a brand new week. */
+function careLabel(r){ return r && r.care ? r.care[0] : "Not set"; }
+function careHours(r){ return r && r.care ? r.care[1] : ""; }
 function pfull(id){ var p = person(id); return p ? p.full : "Not set"; }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
@@ -956,11 +900,35 @@ function unresolved(){
   return out.slice(0,3);
 }
 
+/* Days until she goes back. Recomputed every render, so it counts down. */
+function daysToReturn(){
+  if(!S.returnDate) return null;
+  var d = new Date(S.returnDate + "T00:00:00");
+  if(isNaN(d)) return null;
+  return Math.ceil((d - new Date(new Date().toDateString())) / 86400000);
+}
+
+/* Which phase of the return she is in. Never stored: stored phases go stale
+   the moment the date passes. */
+function stage(){
+  if(S.returnedAlready) return sinceReturn() < BRAND.firstWeeksDays ? "first" : "settled";
+  var n = daysToReturn();
+  if(n === null) return "settled";
+  if(n > 0) return "prep";
+  return -n < BRAND.firstWeeksDays ? "first" : "settled";
+}
+function sinceReturn(){
+  if(!S.returnStarted) return 0;
+  var d = new Date(S.returnStarted + "T00:00:00");
+  if(isNaN(d)) return 0;
+  return Math.floor((new Date(new Date().toDateString()) - d) / 86400000);
+}
+
 /* True when Today has nothing left to ask for. Drives both the ending on the
    screen and the dimmed nav, so the two can never disagree. */
 function isQuietToday(){
-  if(S.stage === "prep") return false;
-  return S.stage === "quiet" || (!unresolved().length && !comingUp().length);
+  if(stage() === "prep") return false;
+  return !unresolved().length && !comingUp().length;
 }
 
 /* SECTION 4. Only what is still ahead this week, and only exceptions.
@@ -1049,13 +1017,13 @@ function dot(role){
 var current = "today";
 function go(name, opts){
   /* In pre-return mode, Today is the countdown. Redirect once, here, not mid-render. */
-  if(name === "today" && S.stage === "prep") name = "return";
+  if(name === "today" && stage() === "prep") name = "return";
   current = name;
   var ids = ["onboard","today","week","owns","chaos","return","reset","share","more"];
   ids.forEach(function(i){ var el = $("s-" + i); if(el) el.classList.toggle("on", i === name); });
   var nav = $("nav");
   nav.hidden = (name === "onboard");
-  var lit = (name === "return" && S.stage === "prep") ? "today" : name;
+  var lit = (name === "return" && stage() === "prep") ? "today" : name;
   Array.prototype.forEach.call(nav.querySelectorAll("[data-go]"), function(b){
     b.classList.toggle("on", b.getAttribute("data-go") === lit);
   });
@@ -1108,14 +1076,14 @@ function closeTake(){ $("takeover").className = "takeover"; $("takeover").innerH
    ========================================================================== */
 function renderToday(){
   var el = $("s-today");
-  var k = todayKey(), d = now(), r = ROUTINE[k], isWeekend = !r;
+  var k = todayKey(), d = now(), r = routine()[k], isWeekend = !r;
   var un = unresolved(), soon = comingUp();
   /* The quiet state: nothing waiting on a decision, nothing ahead worth
      flagging. Today's operating view stays, then the screen ends. */
   var quiet = isQuietToday();
 
   /* ---- 1. WHAT IS HAPPENING TODAY ---- */
-  var head = (S.stage === "first")
+  var head = (stage() === "first")
     ? '<h1 class="disp d1">' + nl(t("today.firstWeek", { day: DAYNAMES[d.getDay()] })) + '</h1>'
     : '<h1 class="disp d2">' + esc(t("today.greet")) + ', ' + esc(pfull("me")) + '.</h1>';
 
@@ -1128,8 +1096,8 @@ function renderToday(){
     if(exc && exc.person){ pickId = exc.person; note = " (changed)"; }
     todayBlock =
       '<dl class="dl">' +
-        row("You", r.me[0], r.me[1]) +
-        row(CHILD.name, r.care[0], r.care[1]) +
+        (r.work.me ? row("You", r.work.me[0], r.work.me[1]) : "") +
+        (r.care ? row(childName(), r.care[0], r.care[1]) : "") +
         row("Drop-off", pname(r.drop), "") +
         row("Pickup", pname(pickId) + note, "") +
       '</dl>';
@@ -1157,7 +1125,7 @@ function renderToday(){
 
   /* ---- 3. WHAT IS STILL RELYING ON MY BRAIN  (observation, not a metric) ---- */
   var carry = "";
-  if(!quiet && S.stage !== "first"){
+  if(!quiet && stage() !== "first"){
     carry =
       '<div class="gap"></div><hr class="rule">' +
       '<div style="padding-top:22px">' +
@@ -1196,7 +1164,7 @@ function renderToday(){
       '<h2 class="disp d1">' + nl(t("quiet.title")) + '</h2>' +
       '<div class="gap-s" style="height:14px"></div>' +
       '<p class="sub" style="font-size:17px">' + esc(t("quiet.sub")) + '</p>';
-  } else if(!S.resetDone && S.stage !== "first"){
+  } else if(!S.resetDone && stage() !== "first"){
     ending =
       '<div class="gap"></div><hr class="rule">' +
       '<div style="padding-top:22px">' +
@@ -1246,7 +1214,7 @@ function openCapture(){
         : '') +
       '<textarea class="inp" id="capIn" rows="3"' + (SPEECH.supported ? '' : ' data-autofocus') +
         ' placeholder="' +
-        esc(S.stage === "prep" ? "what happens if Mia is sick on day one" : "need a bigger daycare sleep sack") +
+        esc(stage() === "prep" ? "what happens if the baby is sick on day one" : "need a bigger daycare sleep sack") +
         '" enterkeyhint="done" aria-label="What is on your mind"></textarea>' +
       '<div class="gap-s" style="height:14px"></div>' +
       '<button class="btn" id="capGo" disabled>' + esc(t("cap.cta")) + ' &rarr;</button>' +
@@ -1524,7 +1492,7 @@ function openResp(id){
   $("respDone").onclick = function(){ closeSheet(); renderOwns(); };
 
   function peopleBtns(key, val){
-    var ps = PEOPLE.filter(function(p){ return !p.provider; });
+    var ps = activePeople().filter(function(p){ return !p.provider; });
     return '<div class="people" data-key="' + key + '">' +
       ps.map(function(p){
         return '<button class="pbtn" data-p="' + p.id + '" aria-pressed="' + (val === p.id) + '">' +
@@ -1556,7 +1524,7 @@ function openAddResp(){
     '<div class="field"><label class="lab" for="arT">The thing</label>' +
       '<input class="inp" id="arT" data-autofocus placeholder="Remembering swimming kit day"></div>' +
     '<div class="field"><label class="lab" for="arC">Where it belongs</label>' +
-      '<select class="sel" id="arC"><option>Daycare</option><option>Mia</option><option>Home</option>' +
+      '<select class="sel" id="arC"><option>Daycare</option><option>' + esc(childName() || "Child") + '</option><option>Home</option>' +
       '<option>Family admin</option><option>Work and logistics</option></select></div>' +
     '<button class="btn" id="arGo">Add it</button>'
   );
@@ -1631,7 +1599,7 @@ function openHandover(id){
       }).join("") + '</ul>' +
       '<div class="gap"></div>' +
       '<p class="lab">Hand it to</p><div class="gap-s" style="height:10px"></div>' +
-      '<div class="people" id="handWho">' + PEOPLE.filter(function(p){ return !p.provider && !p.isMe; }).map(function(p){
+      '<div class="people" id="handWho">' + activePeople().filter(function(p){ return !p.provider && !p.isMe; }).map(function(p){
         return '<button class="pbtn" data-p="' + p.id + '" aria-pressed="' + (target === p.id) + '">' +
           '<span class="av" style="background:var(' + p.color + ')">' + p.initial + '</span>' + esc(p.name) + '</button>';
       }).join("") + '</div>' +
@@ -1715,21 +1683,29 @@ function renderWeek(){
     '<p class="sub" style="font-size:14px">This is your normal week. It stays until you change it.</p>';
 
   function dayBlock(d, isToday){
-    var r = ROUTINE[d.k];
+    var r = routine()[d.k];
     var exc = S.exc.filter(function(e){ return e.day === d.k; });
     var pick = r.pick, changed = false;
     exc.forEach(function(e){ if(e.person){ pick = e.person; changed = true; } });
-    return '<div class="day' + (isToday ? " today" : "") + '">' +
+    var working = activePeople().filter(function(p){ return !p.provider && r.work[p.id]; });
+    /* A day with no work and no childcare has no logistics to show. Three
+       columns of "Not set" is noise, not information. */
+    var hasDay = working.length || r.care;
+    return '<div class="day' + (isToday ? " today" : "") + '" data-day="' + esc(d.k) + '" role="button" tabindex="0">' +
       '<div class="dh"><span class="dn">' + esc(d.n) + '</span>' +
-        '<span class="dd">' + esc(shortDate(dateFor(d.k))) + (isToday ? " &middot; today" : "") + '</span></div>' +
-      '<div class="who">' +
-        w("Lien", r.me[0], r.me[1]) + w("Victor", r.victor[0], r.victor[1]) + w(CHILD.name, r.care[0], r.care[1]) +
-      '</div>' +
-      '<div class="logi">' +
-        l("Drop-off", pname(r.drop), false) +
-        l("Pickup", pname(pick), changed) +
-        l("Dinner", pname(r.dinner), false) +
-      '</div>' +
+        '<span class="dd">' + esc(shortDate(dateFor(d.k))) + (isToday ? " &middot; today" : "") +
+        ' <span class="edit" aria-hidden="true">Edit</span></span></div>' +
+      (hasDay
+        ? '<div class="who">' +
+            working.map(function(p){ return w(p.full, r.work[p.id][0], r.work[p.id][1]); }).join("") +
+            (r.care ? w(childName(), r.care[0], r.care[1]) : "") +
+          '</div>' +
+          '<div class="logi">' +
+            l("Drop-off", pname(r.drop), false) +
+            l("Pickup", pname(pick), changed) +
+            l("Dinner", pname(r.dinner), false) +
+          '</div>'
+        : '<p class="sub" style="font-size:14.5px">Nothing scheduled.</p>') +
       (exc.length ? '<div style="margin-top:11px;font-size:13.5px;font-weight:600;color:var(--coral-ink)">' +
         exc.map(function(e){ return esc(e.label); }).join(" &middot; ") + '</div>' : '') +
     '</div>';
@@ -1741,6 +1717,115 @@ function renderWeek(){
       return '<div class="l"><div class="ll">' + esc(label) + '</div><div class="lv' + (chg ? " chg" : "") + '">' +
         esc(val) + '</div></div>';
     }
+  }
+
+  Array.prototype.forEach.call(el.querySelectorAll("[data-day]"), function(node){
+    function open(){ editDay(node.getAttribute("data-day")); }
+    node.onclick = open;
+    node.onkeydown = function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); open(); }
+    };
+  });
+}
+
+/* The normal week, set once and changed only when real life changes. */
+function editDay(k){
+  var d = DAYS.filter(function(x){ return x.k === k; })[0];
+  var r = routine()[k];
+  var mine = activePeople().filter(function(p){ return !p.provider; });
+  var carers = activePeople();
+
+  draw();
+
+  function draw(){
+    openSheet(
+      '<p class="lab">Your normal ' + esc(d.n.toLowerCase()) + '</p>' +
+      '<div class="gap-s" style="height:10px"></div>' +
+      '<h2 class="disp d2">' + esc(d.n) + '</h2>' +
+      '<div class="gap-s" style="height:8px"></div>' +
+      '<p class="sub" style="font-size:14px">Set it once. After this the app only asks what is different.</p>' +
+      '<div class="gap-s"></div>' +
+
+      '<div class="qa"><div class="q">Are you working?</div>' +
+        '<div class="segs" id="edWork">' +
+          ["off","office","home","flex"].map(function(m){
+            var on = m === "off" ? !r.work.me : (r.work.me && modeKey(r.work.me[0]) === m);
+            return '<button data-m="' + m + '" aria-pressed="' + !!on + '">' +
+              (m === "off" ? "Off" : m === "flex" ? "Flexible" : m.charAt(0).toUpperCase() + m.slice(1)) +
+              '</button>';
+          }).join("") +
+        '</div>' +
+        (r.work.me ? '<div class="gap-s" style="height:10px"></div>' +
+          '<input class="inp" id="edHours" value="' + esc(r.work.me[1] || "") + '" placeholder="Hours, e.g. 9–5">' : '') +
+      '</div>' +
+
+      '<div class="qa"><div class="q">Where is ' + esc(childName() || "your child") + '?</div>' +
+        '<div class="people" id="edCare">' +
+          '<button class="pbtn" data-c="" aria-pressed="' + !r.care + '">With us</button>' +
+          carers.map(function(p){
+            return '<button class="pbtn" data-c="' + p.id + '" aria-pressed="' +
+              (!!r.care && r.care[0] === p.full) + '">' +
+              '<span class="av" style="background:var(' + p.color + ')">' + esc(p.initial) + '</span>' +
+              esc(p.full) + '</button>';
+          }).join("") +
+        '</div>' +
+        (r.care ? '<div class="gap-s" style="height:10px"></div>' +
+          '<input class="inp" id="edCareHours" value="' + esc(r.care[1] || "") + '" placeholder="Hours, e.g. 8–5:30">' : '') +
+      '</div>' +
+
+      slot("Drop-off", "drop", r.drop) +
+      slot("Pickup", "pick", r.pick) +
+      slot("Dinner", "dinner", r.dinner) +
+
+      '<div class="gap-s"></div>' +
+      '<button class="btn" id="edDone">Save this day</button>'
+    );
+
+    Array.prototype.forEach.call($("edWork").querySelectorAll("button"), function(b){
+      b.onclick = function(){
+        var m = b.getAttribute("data-m");
+        if(m === "off") delete r.work.me;
+        else r.work.me = [m === "flex" ? "Flexible" : m.charAt(0).toUpperCase() + m.slice(1),
+                          r.work.me ? r.work.me[1] : ""];
+        save(); draw();
+      };
+    });
+    Array.prototype.forEach.call($("edCare").querySelectorAll("[data-c]"), function(b){
+      b.onclick = function(){
+        var id = b.getAttribute("data-c");
+        if(!id) r.care = null;
+        else r.care = [pfull(id), r.care ? r.care[1] : ""];
+        save(); draw();
+      };
+    });
+    Array.prototype.forEach.call($("sheet").querySelectorAll(".people[data-slot]"), function(grp){
+      var key = grp.getAttribute("data-slot");
+      Array.prototype.forEach.call(grp.querySelectorAll(".pbtn"), function(b){
+        b.onclick = function(){
+          r[key] = b.getAttribute("data-p") || null; save(); draw();
+        };
+      });
+    });
+    $("edDone").onclick = function(){
+      var h = $("edHours"); if(h && r.work.me) r.work.me[1] = h.value.trim();
+      var c = $("edCareHours"); if(c && r.care) r.care[1] = c.value.trim();
+      save(); closeSheet(); renderWeek(); toast(d.n + " saved.");
+    };
+  }
+
+  function modeKey(label){
+    var m = String(label).toLowerCase();
+    return m === "flexible" ? "flex" : m;
+  }
+  function slot(label, key, val){
+    return '<div class="qa"><div class="q">' + esc(label) + '</div>' +
+      '<div class="people" data-slot="' + key + '">' +
+      mine.map(function(p){
+        return '<button class="pbtn" data-p="' + p.id + '" aria-pressed="' + (val === p.id) + '">' +
+          '<span class="av" style="background:var(' + p.color + ')">' + esc(p.initial) + '</span>' +
+          esc(p.name) + '</button>';
+      }).join("") +
+      '<button class="pbtn" data-p="" aria-pressed="' + !val + '">Nobody</button></div></div>';
   }
 }
 
@@ -1797,12 +1882,12 @@ function renderReset(opts){
       '<h1 class="disp d2">Here\'s the week,<br>with the changes in.</h1>' +
       '<div class="gap"></div>' +
       DAYS.map(function(d){
-        var r = ROUTINE[d.k];
+        var r = routine()[d.k];
         var exc = S.exc.filter(function(e){ return e.day === d.k; });
         var pick = r.pick; exc.forEach(function(e){ if(e.person) pick = e.person; });
         return '<div style="display:grid;grid-template-columns:46px 1fr;gap:12px;padding:13px 0;border-bottom:1px solid var(--line-soft)">' +
           '<span class="lab" style="padding-top:3px">' + esc(d.n.slice(0,3)) + '</span>' +
-          '<span style="font-size:15.5px;font-weight:600;line-height:1.45">' + esc(r.care[0]) +
+          '<span style="font-size:15.5px;font-weight:600;line-height:1.45">' + esc(careLabel(r)) +
             ' <span style="color:var(--muted);font-weight:500">&middot; ' + esc(pname(r.drop)) + ' drop, ' + esc(pname(pick)) + ' pickup</span>' +
             (exc.length ? '<br><span style="color:var(--coral-ink);font-size:13.5px;font-weight:700">' +
               exc.map(function(e){ return esc(e.label); }).join(" &middot; ") + '</span>' : '') +
@@ -1842,7 +1927,7 @@ function renderReset(opts){
       '<div class="gap-s" style="height:14px"></div>' +
       '<p class="sub" style="font-size:18px">' + esc(t("reset.doneSub")) + '</p>' +
       '<div class="gap-l"></div>' +
-      '<button class="txtbtn" data-go2="share">Send it to Victor &rarr;</button>' +
+      '<button class="txtbtn" data-go2="share">' + esc(sendItTo()) + ' &rarr;</button>' +
       '<div class="gap-l"></div>' +
       '<p class="lab">Nothing else needed until Sunday</p>';
   }
@@ -1858,7 +1943,7 @@ function renderReset(opts){
       }).join("") + '</div>' +
       (needsPerson ?
         '<div class="gap"></div><p class="lab">Who\'s covering it?</p><div class="gap-s" style="height:10px"></div>' +
-        '<div class="people" id="exWho">' + PEOPLE.filter(function(p){ return !p.provider; }).map(function(p){
+        '<div class="people" id="exWho">' + activePeople().filter(function(p){ return !p.provider; }).map(function(p){
           return '<button class="pbtn" data-p="' + p.id + '" aria-pressed="false">' +
             '<span class="av" style="background:var(' + p.color + ')">' + p.initial + '</span>' + esc(p.name) + '</button>';
         }).join("") + '</div>' : '') +
@@ -2012,7 +2097,7 @@ function openScen(id){
     function q(question, slot){
       return '<div class="qa"><div class="q">' + esc(question) + '</div>' +
         '<div class="people" data-slot="' + slot + '">' +
-        PEOPLE.map(function(p){
+        activePeople().map(function(p){
           return '<button class="pbtn" data-p="' + p.id + '" aria-pressed="' + (plan[slot] === p.id) + '">' +
             '<span class="av" style="background:var(' + p.color + ')">' + p.initial + '</span>' + esc(p.name) + '</button>';
         }).join("") + '</div></div>';
@@ -2050,7 +2135,7 @@ function scenDone(s){
    ========================================================================== */
 function renderReturn(){
   var el = $("s-return");
-  var d = S.daysToReturn;
+  var d = daysToReturn();
   var open = S.retTasks.filter(function(x){ return !x.done; });
   var three = open.slice(0,3);
 
@@ -2087,10 +2172,10 @@ function renderReturn(){
       '<h2 class="disp d3">Nothing left<br>worth sorting.</h2><div class="gap-s"></div>' +
       '<p class="sub">The rest is just Monday happening.</p>') +
     '<div class="gap-l"></div>' +
-    '<div class="band lav">' +
+    '<div class="band">' +
       '<h2 class="disp d2">' + nl(t("ret.awake")) + '</h2>' +
       '<div class="gap-s"></div>' +
-      '<button class="btn" id="retDump" style="background:var(--on-color);color:var(--coral)">' + esc(t("ret.awakeCta")) + ' &rarr;</button>' +
+      '<button class="btn" id="retDump" style="background:var(--on-band);color:var(--band)">' + esc(t("ret.awakeCta")) + ' &rarr;</button>' +
     '</div>' +
     '<div class="gap"></div>' +
     '<p class="lab">Also worth a look</p>' +
@@ -2161,7 +2246,7 @@ function paintCard(ctx, W, dry){
   y += 34; rule(y,6,INK); y += 54;
 
   DAYS.forEach(function(d){
-    var r=ROUTINE[d.k];
+    var r=routine()[d.k];
     var exc=S.exc.filter(function(e){ return e.day===d.k; });
     var pick=r.pick; exc.forEach(function(e){ if(e.person) pick=e.person; });
     var top=y;
@@ -2171,7 +2256,7 @@ function paintCard(ctx, W, dry){
 
     y += 36;
     font('600 38px Archivo, Helvetica, Arial, sans-serif'); fill(INK);
-    para(r.care[0] + (r.care[1] ? "  " + r.care[1] : ""), cx, textW, 46);
+    para(careLabel(r) + (careHours(r) ? "  " + careHours(r) : ""), cx, textW, 46);
     y += 6;
     font('500 32px Archivo, Helvetica, Arial, sans-serif'); fill(MUT);
     para(sname(r.drop) + " drop-off   ·   " + sname(pick) + " pickup", cx, textW, 42);
@@ -2240,11 +2325,11 @@ function renderShareImage(){
 function shareText(){
   var lines = ["OUR WEEK", "Week of " + shortDate(weekMonday()), ""];
   DAYS.forEach(function(d){
-    var r = ROUTINE[d.k];
+    var r = routine()[d.k];
     var exc = S.exc.filter(function(e){ return e.day === d.k; });
     var pick = r.pick; exc.forEach(function(e){ if(e.person) pick = e.person; });
     lines.push(d.n.slice(0,3).toUpperCase());
-    lines.push("  " + r.care[0] + (r.care[1] ? " " + r.care[1] : ""));
+    lines.push("  " + careLabel(r) + (careHours(r) ? " " + careHours(r) : ""));
     lines.push("  " + sname(r.drop) + " drop-off, " + sname(pick) + " pickup");
     if(exc.length) exc.forEach(function(e){ lines.push("  ! " + e.label); });
     lines.push("");
@@ -2284,11 +2369,11 @@ function renderShare(){
       '<div class="ch"><h2 class="disp d2">' + esc(t("share.title")) + '</h2>' +
         '<p class="lab" style="margin-top:8px">Week of ' + esc(shortDate(weekMonday())) + '</p></div>' +
       DAYS.map(function(d){
-        var r = ROUTINE[d.k];
+        var r = routine()[d.k];
         var exc = S.exc.filter(function(e){ return e.day === d.k; });
         var pick = r.pick; exc.forEach(function(e){ if(e.person) pick = e.person; });
         return '<div class="srow"><span class="sd">' + esc(d.n.slice(0,3)) + '</span>' +
-          '<span class="sv">' + esc(r.care[0]) + (r.care[1] ? ' <em>' + esc(r.care[1]) + '</em>' : '') + '<br>' +
+          '<span class="sv">' + esc(careLabel(r)) + (careHours(r) ? ' <em>' + esc(careHours(r)) + '</em>' : '') + '<br>' +
           '<em>' + esc(sname(r.drop)) + ' drop-off &middot; ' + esc(sname(pick)) + ' pickup</em>' +
           (exc.length ? '<br>' + exc.map(function(e){ return esc(e.label); }).join(" &middot; ") : '') +
           '</span></div>';
@@ -2315,7 +2400,7 @@ function renderShare(){
       '<button class="txtbtn mut" id="shMore">' + esc(t("share.other")) + '</button></div>' +
     '<div class="gap-s noprint" style="height:8px"></div>' +
     '<p class="sub noprint" style="font-size:13.5px">Sends as a picture, so nobody has to have the app. ' +
-      'It names ' + esc(CHILD.name) + ', where she is and who collects her. ' +
+      'It names ' + esc(childName()) + ', where she is and who collects her. ' +
       '<button class="txtbtn" id="shInit" style="padding:0;font-size:13.5px">' +
         (S.shareInitials ? "Use full names" : "Use initials instead") + '</button></p>';
 
@@ -2443,15 +2528,24 @@ function renderMore(){
           v.charAt(0).toUpperCase() + v.slice(1) + '</button>';
       }).join("") + '</div>' +
     '<div class="gap"></div>' +
-    '<p class="lab">People</p><div class="gap-s" style="height:8px"></div>' +
-    PEOPLE.map(function(p){
-      return '<div class="float" style="cursor:default"><span class="av" style="background:var(' + p.color +
+    '<p class="lab">The operation</p><div class="gap-s" style="height:8px"></div>' +
+    '<button class="float" id="moChild"><span class="ft">' +
+      (childName() ? esc(childName()) : "Add your child's name") +
+      '</span><span class="fa">&rsaquo;</span></button>' +
+    activePeople().map(function(p){
+      return '<button class="float" data-person="' + esc(p.id) + '">' +
+        '<span class="av" style="background:var(' + p.color +
         ');width:26px;height:26px;border-radius:100px;display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--on-color);flex:none">' +
-        p.initial + '</span><span class="ft">' + esc(p.full) + (p.isMe ? " (you)" : "") + '</span></div>';
+        esc(p.initial) + '</span><span class="ft">' + esc(p.full) +
+        (p.isMe ? " (you)" : p.provider ? " (childcare)" : "") + '</span>' +
+        '<span class="fa">&rsaquo;</span></button>';
     }).join("") +
+    '<div class="gap-s" style="height:10px"></div>' +
+    '<button class="btn ghost sm" id="moAddPerson">+ Add someone</button>' +
     '<div class="gap"></div>' +
     '<p class="lab">Data</p><div class="gap-s" style="height:8px"></div>' +
     '<button class="float" id="moExport"><span class="ft">Back up my data</span><span class="fa">&rsaquo;</span></button>' +
+    '<button class="float" id="moRestore"><span class="ft">Restore from a backup</span><span class="fa">&rsaquo;</span></button>' +
     '<button class="float" id="moWipe"><span class="ft">Delete everything</span><span class="fa">&rsaquo;</span></button>' +
     '<div class="gap"></div>' +
     '<p class="lab">Privacy</p><div class="gap-s" style="height:8px"></div>' +
@@ -2465,13 +2559,19 @@ function renderMore(){
     (S.name ? '<div class="gap"></div><p class="lab">' + esc(S.name) + '</p>' : '');
 
   Array.prototype.forEach.call($("moreVoice").querySelectorAll("[data-v]"), function(b){
-    b.onclick = function(){ S.voice = b.getAttribute("data-v"); save(); syncProto(); renderMore(); };
+    b.onclick = function(){ S.voice = b.getAttribute("data-v"); save(); renderMore(); };
   });
   Array.prototype.forEach.call($("moreTheme").querySelectorAll("[data-t]"), function(b){
     b.onclick = function(){ setTheme(b.getAttribute("data-t")); renderMore(); };
   });
   /* Prototype backup: shows the data so it can be copied anywhere. The real
      file download belongs to the hosted build and is a Phase 3 job. */
+  $("moChild").onclick = function(){ editChild(); };
+  $("moAddPerson").onclick = function(){ editPerson(null); };
+  Array.prototype.forEach.call(el.querySelectorAll("[data-person]"), function(b){
+    b.onclick = function(){ editPerson(b.getAttribute("data-person")); };
+  });
+
   $("moExport").onclick = function(){
     var json = JSON.stringify(S, null, 2);
     openSheet(
@@ -2492,13 +2592,141 @@ function renderMore(){
       } else { ta.select(); toast("Select all and copy."); }
     };
   };
+
+  $("moRestore").onclick = function(){
+    openSheet(
+      '<h2 class="disp d3">Bring your<br>data back</h2>' +
+      '<div class="gap-s" style="height:10px"></div>' +
+      '<p class="sub">Paste a backup here. It replaces everything currently in the app, ' +
+        'so back up first if there is anything in here you want to keep.</p>' +
+      '<div class="gap-s"></div>' +
+      '<textarea class="inp" id="rsJson" rows="8" data-autofocus placeholder="Paste your backup"></textarea>' +
+      '<div class="gap-s" style="height:12px"></div>' +
+      '<button class="btn" id="rsGo">Restore it</button>'
+    );
+    $("rsGo").onclick = function(){
+      var raw = $("rsJson").value.trim();
+      if(!raw){ toast("Nothing pasted."); return; }
+      var o;
+      try{ o = JSON.parse(raw); }
+      catch(e){ toast("That is not a backup file."); return; }
+      if(!o || !o.people || !o.routine){ toast("That backup is missing its week."); return; }
+      S = o; save(); closeSheet(); go("today");
+      toast("Restored.");
+    };
+  };
   $("moWipe").onclick = function(){
     openSheet('<h2 class="disp d3">Delete everything?</h2><div class="gap-s"></div>' +
       '<p class="sub">This clears the prototype back to its starting state. In the real product this would need you to type the word delete.</p>' +
       '<div class="gap-s"></div><button class="btn" id="wipeGo">Delete it all</button>' +
       '<div style="text-align:center"><button class="txtbtn mut" id="wipeNo">Keep it</button></div>');
     $("wipeNo").onclick = closeSheet;
-    $("wipeGo").onclick = function(){ S = fresh(); save(); closeSheet(); syncProto(); go("today"); toast("Back to a clean start."); };
+    $("wipeGo").onclick = function(){ S = fresh(); save(); closeSheet(); go("onboard"); toast("All gone."); };
+  };
+}
+
+/* ==========================================================================
+   PEOPLE  -  editable after onboarding, because households change
+   ========================================================================== */
+function editChild(){
+  openSheet(
+    '<h2 class="disp d3">Your child</h2>' +
+    '<div class="gap-s" style="height:10px"></div>' +
+    '<p class="sub">Used on your week and on anything you share.</p>' +
+    '<div class="gap-s"></div>' +
+    '<div class="field"><input class="inp" id="chName" data-autofocus value="' +
+      esc(childName()) + '" placeholder="Their name"></div>' +
+    '<button class="btn" id="chGo">Save</button>'
+  );
+  $("chGo").onclick = function(){
+    S.child = { name: $("chName").value.trim() };
+    save(); closeSheet(); renderMore(); toast("Saved.");
+  };
+}
+
+/* Removing someone has to clear every reference to them, or the week starts
+   pointing at a person who no longer exists. */
+function forgetPerson(id){
+  Object.keys(routine()).forEach(function(k){
+    var r = routine()[k];
+    ["drop","pick","dinner"].forEach(function(f){ if(r[f] === id) r[f] = null; });
+    if(r.work && r.work[id]) delete r.work[id];
+    if(r.care && r.care[0] === pfull(id)) r.care = null;
+  });
+  S.resp.forEach(function(x){
+    if(x.remember === id) x.remember = "me";
+    if(x.doer === id) x.doer = null;
+    if(x.backup === id) x.backup = null;
+  });
+  S.scen.forEach(function(x){
+    if(!x.plan) return;
+    ["first","second","third"].forEach(function(f){ if(x.plan[f] === id) x.plan[f] = null; });
+    if(!x.plan.first) x.ready = false;
+  });
+  S.exc.forEach(function(e){ if(e.person === id){ e.person = null; e.needsCover = true; } });
+  S.people = S.people.filter(function(p){ return p.id !== id; });
+}
+
+function editPerson(id){
+  var p = id ? person(id) : null;
+  openSheet(
+    '<h2 class="disp d3">' + (p ? esc(p.full) : "Who else is<br>in the operation?") + '</h2>' +
+    '<div class="gap-s" style="height:10px"></div>' +
+    (p && p.isMe ? '<p class="sub">This is you. Everything is addressed to this name.</p>'
+                 : '<p class="sub">Anyone who can own something, do something, or step in.</p>') +
+    '<div class="gap-s"></div>' +
+    '<div class="field"><label class="lab" for="pName">Name</label>' +
+      '<input class="inp" id="pName" data-autofocus value="' + esc(p ? p.full : "") + '" placeholder="Their name"></div>' +
+    (p || true ? '<div class="field"><label class="lab">They are</label>' +
+      '<div class="segs" id="pKind">' +
+        '<button data-k="person" aria-pressed="' + (!p || !p.provider) + '">A person</button>' +
+        '<button data-k="provider" aria-pressed="' + (!!p && !!p.provider) + '">Childcare</button>' +
+      '</div></div>' : '') +
+    '<button class="btn" id="pGo">Save</button>' +
+    (p && !p.isMe ? '<div style="text-align:center">' +
+      '<button class="txtbtn mut" id="pDel">Remove ' + esc(p.full) + '</button></div>' : '')
+  );
+
+  var kind = p && p.provider ? "provider" : "person";
+  Array.prototype.forEach.call($("pKind").querySelectorAll("button"), function(b){
+    b.onclick = function(){
+      kind = b.getAttribute("data-k");
+      Array.prototype.forEach.call($("pKind").querySelectorAll("button"), function(o){
+        o.setAttribute("aria-pressed", String(o === b));
+      });
+    };
+  });
+
+  $("pGo").onclick = function(){
+    var v = $("pName").value.trim();
+    if(!v){ $("pName").focus(); return; }
+    if(p){
+      p.full = v;
+      p.name = p.isMe ? "You" : v;
+      p.initial = v.charAt(0).toUpperCase();
+      if(!p.isMe) p.provider = kind === "provider";
+    } else {
+      S.people.push(makePerson(v, { provider: kind === "provider" }));
+    }
+    save(); closeSheet(); renderMore(); toast("Saved.");
+  };
+
+  var del = $("pDel");
+  if(del) del.onclick = function(){
+    openSheet(
+      '<h2 class="disp d3">Remove ' + esc(p.full) + '?</h2>' +
+      '<div class="gap-s"></div>' +
+      '<p class="sub">Anything they were doing or backing up becomes unassigned, ' +
+        'and anything they were remembering comes back to you.</p>' +
+      '<div class="gap-s"></div>' +
+      '<button class="btn" id="pDelGo">Remove them</button>' +
+      '<div style="text-align:center"><button class="txtbtn mut" id="pDelNo">Keep them</button></div>'
+    );
+    $("pDelNo").onclick = closeSheet;
+    $("pDelGo").onclick = function(){
+      forgetPerson(p.id); save(); closeSheet(); renderMore();
+      toast(p.full + " removed.");
+    };
   };
 }
 
@@ -2524,8 +2752,12 @@ function renderOb(step){
       '<h1 class="disp d2">' + nl(t("ob.2.title")) + '</h1>' +
       '<div class="gap-s"></div><p class="sub">' + esc(t("ob.2.why")) + '</p>' +
       '<div class="gap"></div>' +
+      '<div class="field"><label class="lab" for="obMe">Your first name</label>' +
+        '<input class="inp" id="obMe" value="' + esc(o.myName || "") + '" placeholder="Your name" autocomplete="given-name"></div>' +
+      '<div class="field"><label class="lab" for="obKid">Your child\'s name</label>' +
+        '<input class="inp" id="obKid" value="' + esc(o.childName || "") + '" placeholder="Their name"></div>' +
       '<div class="field"><label class="lab" for="obDate">Return date</label>' +
-        '<input class="inp" id="obDate" type="date" value="' + esc(o.back || "") + '"></div>' +
+        '<input class="inp" id="obDate" type="date" value="' + esc(o.back && o.back !== "already" ? o.back : "") + '"></div>' +
       '<div class="optlist"><button id="obAlready" aria-pressed="' + (o.back === "already") + '">' +
         '<span class="rd"><i></i></span>I\'m already back</button></div>',
       '<button class="btn" data-ob="3">Next &rarr;</button>');
@@ -2533,6 +2765,8 @@ function renderOb(step){
       o.back = o.back === "already" ? null : "already"; save(); renderOb(2);
     };
     $("obDate").onchange = function(){ o.back = this.value; save(); };
+    $("obMe").oninput  = function(){ o.myName = this.value; save(); };
+    $("obKid").oninput = function(){ o.childName = this.value; save(); };
   }
 
   if(step === 3){
@@ -2581,17 +2815,22 @@ function renderOb(step){
       '<h1 class="disp d2">' + nl(t("ob.4.title")) + '</h1>' +
       '<div class="gap-s"></div><p class="sub">' + esc(t("ob.4.why")) + '</p>' +
       '<div class="gap"></div>' +
-      '<p class="lab">Who looks after ' + esc(CHILD.name) + '</p><div class="gap-s" style="height:10px"></div>' +
+      '<p class="lab">Who looks after ' + esc(childName()) + '</p><div class="gap-s" style="height:10px"></div>' +
       '<div class="chips" id="obCare">' + cares.map(function(c){
         return '<button class="chip" data-c="' + esc(c) + '" aria-pressed="' + (o.care.indexOf(c) >= 0) + '">' + esc(c) + '</button>';
       }).join("") + '</div>' +
       '<div class="gap"></div>' +
-      '<p class="lab">People who can own or cover something</p><div class="gap-s" style="height:10px"></div>' +
-      '<div class="people" id="obPeople">' + PEOPLE.map(function(p){
-        return '<button class="pbtn" data-p="' + p.id + '" aria-pressed="' + (o.people.indexOf(p.id) >= 0) + '">' +
-          '<span class="av" style="background:var(' + p.color + ')">' + p.initial + '</span>' + esc(p.full) + '</button>';
-      }).join("") + '</div>' +
-      '<div class="gap-s"></div><button class="txtbtn">+ Add someone else</button>',
+      '<p class="lab">Who else is in the operation</p>' +
+      '<div class="gap-s" style="height:6px"></div>' +
+      '<p class="sub" style="font-size:14px">Anyone who can own something, do something, or step in when it goes sideways.</p>' +
+      '<div class="gap-s" style="height:12px"></div>' +
+      (o.extra.length ? '<div class="people" id="obPeople">' + o.extra.map(function(nm, i){
+        return '<button class="pbtn" data-i="' + i + '" aria-pressed="true">' +
+          '<span class="av" style="background:var(' + PERSON_COLORS[i % PERSON_COLORS.length] + ')">' +
+          esc(nm.charAt(0).toUpperCase()) + '</span>' + esc(nm) + ' &times;</button>';
+      }).join("") + '</div><div class="gap-s" style="height:12px"></div>' : '') +
+      '<div class="field" style="margin-bottom:0">' +
+        '<input class="inp" id="obNew" placeholder="Add a name, then press enter" enterkeyhint="done"></div>',
       '<button class="btn" data-ob="5">Next &rarr;</button>');
     Array.prototype.forEach.call($("obCare").querySelectorAll("[data-c]"), function(b){
       b.onclick = function(){
@@ -2600,11 +2839,18 @@ function renderOb(step){
         save(); renderOb(4);
       };
     });
-    Array.prototype.forEach.call($("obPeople").querySelectorAll("[data-p]"), function(b){
+    function addPerson(){
+      var v = $("obNew").value.trim();
+      if(v && o.extra.indexOf(v) < 0){ o.extra.push(v); save(); renderOb(4); }
+    }
+    $("obNew").addEventListener("keydown", function(e){
+      if(e.key === "Enter"){ e.preventDefault(); addPerson(); }
+    });
+    $("obNew").addEventListener("blur", addPerson);
+    var pl = $("obPeople");
+    if(pl) Array.prototype.forEach.call(pl.querySelectorAll("[data-i]"), function(b){
       b.onclick = function(){
-        var p = b.getAttribute("data-p"), i = o.people.indexOf(p);
-        if(i >= 0 && p !== "me") o.people.splice(i,1); else if(i < 0) o.people.push(p);
-        save(); renderOb(4);
+        o.extra.splice(parseInt(b.getAttribute("data-i"), 10), 1); save(); renderOb(4);
       };
     });
   }
@@ -2652,11 +2898,43 @@ function renderOb(step){
   }
 }
 
+/* Turns the onboarding answers into the actual household and week. Everything
+   asked for gets used here; nothing is collected and thrown away. */
+function applyOnboarding(){
+  var o = S.ob;
+
+  S.child = { name: (o.childName || "").trim() };
+
+  S.people = [ makePerson((o.myName || "You").trim(), { id:"me", isMe:true, color:"--coral" }) ];
+  o.extra.forEach(function(nm, i){
+    S.people.push(makePerson(nm, { color: PERSON_COLORS[i % PERSON_COLORS.length] }));
+  });
+  /* Childcare providers are people too, but they cannot own anything. */
+  o.care.filter(function(c){ return c === "Daycare" || c === "Nanny"; }).forEach(function(c){
+    S.people.push(makePerson(c, { color:"--line", provider:true }));
+  });
+
+  var careLabel = o.care.length ? o.care[0] : null;
+  S.routine = blankRoutine();
+  o.days.forEach(function(k){
+    var mode = o.modes[k] || "office";
+    S.routine[k].work = {};
+    S.routine[k].work.me = [mode === "flex" ? "Flexible" : mode.charAt(0).toUpperCase() + mode.slice(1), ""];
+    if(careLabel) S.routine[k].care = [careLabel, ""];
+  });
+
+  if(o.back === "already"){
+    S.returnedAlready = true;
+    S.returnStarted = new Date().toISOString().slice(0, 10);
+  } else if(o.back){
+    S.returnDate = o.back;
+  }
+}
+
 function finishOb(){
   S.onboarded = true;
   var stuck = S.ob.stuck;
-  if(S.ob.back === "already"){ S.stage = "first"; }
-  else if(S.ob.back){ S.stage = "prep"; }
+  applyOnboarding();
   save();
   openTake(
     '<div class="mid">' +
@@ -2677,57 +2955,18 @@ function finishOb(){
 }
 
 /* ==========================================================================
-   THEME + PROTOTYPE BAR
+   THEME
    ========================================================================== */
 function setTheme(v){
   S.theme = v; save();
   if(v === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", v);
-  syncProto();
 }
-
-function syncProto(){
-  var pb = $("pb");
-  set("data-stage", S.stage);
-  set("data-days", String(S.daysToReturn));
-  set("data-voice", S.voice);
-  set("data-theme", S.theme);
-  set("data-name", S.name || "none");
-  $("pbState").textContent = S.stage + " / " + S.voice + (S.name ? " / " + S.name : "");
-  function set(attr, val){
-    Array.prototype.forEach.call(pb.querySelectorAll("[" + attr + "]"), function(b){
-      b.classList.toggle("on", b.getAttribute(attr) === val);
-    });
-  }
-}
-
-$("pbh").onclick = function(){ $("pb").classList.toggle("open"); };
-Array.prototype.forEach.call($("pb").querySelectorAll("button"), function(b){
-  b.onclick = function(){
-    if(b.hasAttribute("data-stage")){
-      S.stage = b.getAttribute("data-stage"); save();
-      go(S.stage === "prep" ? "return" : "today");
-    }
-    if(b.hasAttribute("data-days")){
-      S.daysToReturn = parseInt(b.getAttribute("data-days"),10); S.stage = "prep"; save(); go("return");
-    }
-    if(b.hasAttribute("data-voice")){ S.voice = b.getAttribute("data-voice"); save(); go(current); }
-    if(b.hasAttribute("data-theme")){ setTheme(b.getAttribute("data-theme")); }
-    if(b.hasAttribute("data-name")){
-      var n = b.getAttribute("data-name"); S.name = (n === "none" ? "" : n); save(); go(current);
-    }
-    if(b.getAttribute("data-do") === "onboard"){ S.ob = fresh().ob; save(); go("onboard"); }
-    if(b.getAttribute("data-do") === "wipe"){ S = fresh(); save(); go("today"); toast("Demo data reset."); }
-    syncProto();
-  };
-});
 
 /* ==========================================================================
    BOOT
    ========================================================================== */
-document.body.classList.add("pb-on");
 setTheme(S.theme);
-syncProto();
 
 $("fab").onclick = openCapture;
 Array.prototype.forEach.call($("nav").querySelectorAll("[data-go]"), function(b){

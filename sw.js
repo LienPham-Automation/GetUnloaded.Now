@@ -1,6 +1,6 @@
 /* Prototype service worker: caches the app shell so it opens offline after the first load.
    Bump CACHE whenever index.html changes so returning users get the new version. */
-var CACHE = "rtw-v2";
+var CACHE = "unloaded-5c6c93db";
 var ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", function (e) {

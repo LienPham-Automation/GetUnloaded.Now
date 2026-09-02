@@ -110,13 +110,41 @@ installed it keep the old cached version.
 
 ---
 
-## Still prototype, not V1
+## Showing it to someone
 
-The dark **Prototype controls** bar at the top is scaffolding, not product. It
-switches stage, voice level, theme and candidate name so you can reach states that
-would otherwise take weeks of real time. Remove it before this goes to anyone real:
-delete the `<div class="pb">` block, its `.pb` styles, and the `syncProto` wiring
-near the bottom of the script.
+A first run starts empty and goes through onboarding, which is what a real user
+should see. To demo the app with a household already in it, open:
 
-Known gaps, all deliberate: one child only, no partner sync, and the "Ready for
-Monday" checklist still needs the rethink described in `design/PHASE-2-NOTES.md`.
+```
+getunloaded.now/#/demo
+```
+
+That loads the Lien / Victor / Mia example over whatever is stored. There is
+deliberately no button for it in the app, because "load fake data" is confusing
+for someone who just installed it. **It overwrites existing data**, so do not send
+that link to anyone actually using the app.
+
+---
+
+## How the return phases work
+
+Nothing about the phase is stored. `stage()` derives it from `returnDate` on every
+render, so the countdown counts down on its own and the app moves from
+pre-return, to the first weeks back, to ordinary life without anyone touching it.
+The window for "first weeks back" is `BRAND.firstWeeksDays`, currently 28.
+
+This matters if you edit state by hand: set `returnDate`, never a phase.
+
+---
+
+## Known gaps
+
+All deliberate, none blocking:
+
+- One child. The model takes a name; the UI assumes one.
+- No partner sync, by design for V1.
+- The "Ready for Monday" checklist still needs the rethink described in
+  `design/PHASE-2-NOTES.md`. It is the one feature that breaks the project's own
+  maintenance rule.
+- Responsibilities still seed from a fixed starter list only in the demo. A real
+  first run starts with none, and you add them as you notice them.
