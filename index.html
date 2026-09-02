@@ -168,7 +168,7 @@ ul{margin:0;padding:0;list-style:none}
 .btn-row .btn{flex:1}
 .txtbtn{
   font-size:13.5px;font-weight:700;color:var(--coral-ink);letter-spacing:.02em;
-  padding:11px 0;display:inline-block;
+  padding:13px 0;display:inline-block;min-height:44px;line-height:18px;
 }
 .txtbtn.mut{color:var(--muted)}
 
@@ -246,6 +246,10 @@ textarea.inp{resize:none;line-height:1.45}
 .tlist button[aria-pressed="true"] .box svg{opacity:1}
 .tlist button[aria-pressed="true"] .t{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
 .tlist .t{font-size:16px;font-weight:600;flex:1}
+.tlist .t .from{
+  display:block;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--coral-ink);margin-top:3px;
+}
 
 /* ==========================================================================
    OWNERSHIP
@@ -400,6 +404,45 @@ button.mic:active{transform:scale(.985)}
   margin-top:11px;font-size:14px;line-height:1.45;color:var(--ink);font-weight:500;
   background:var(--apricot-wash);border-radius:3px;padding:12px 14px;
 }
+
+/* Things she sorted onto a day, shown on that day in My Week. */
+.dayitems{margin-top:12px;padding-top:11px;border-top:1px solid var(--line-soft);display:grid;gap:7px}
+.di{display:flex;align-items:baseline;gap:9px;font-size:14.5px;font-weight:600;line-height:1.35}
+.di .dib{width:6px;height:6px;border-radius:100px;background:var(--coral);flex:none;transform:translateY(-2px)}
+.di.done{color:var(--muted);font-weight:500;text-decoration:line-through;text-decoration-color:var(--faint)}
+.di.done .dib{background:var(--line)}
+
+/* Done stays on the page, collapsed. Work that vanishes feels untrustworthy. */
+.donebox{border-top:1.5px solid var(--line)}
+.donebox summary{
+  display:flex;align-items:center;gap:10px;padding:14px 0;cursor:pointer;list-style:none;
+}
+.donebox summary::-webkit-details-marker{display:none}
+.donebox summary::after{
+  content:"";width:7px;height:7px;margin-left:auto;flex:none;
+  border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+  transform:rotate(45deg);transition:transform .18s;
+}
+.donebox[open] summary::after{transform:rotate(225deg)}
+.donebox .dn{
+  font-size:11px;font-weight:700;color:var(--muted);
+  box-shadow:inset 0 0 0 1.5px var(--line);border-radius:100px;padding:2px 8px;
+}
+.donebox .tlist{border-top:0;padding-bottom:6px}
+
+/* Out of your head: the record of where things went. */
+.prow{padding:14px 0;border-bottom:1px solid var(--line-soft)}
+.prow:first-child{border-top:1.5px solid var(--line)}
+.prow .ptext{font-size:16px;font-weight:600;line-height:1.4;letter-spacing:-.01em}
+.prow.done .ptext{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+.prow .pmeta{display:flex;align-items:baseline;gap:9px;margin-top:6px;flex-wrap:wrap}
+.prow .pdest{
+  font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--coral-ink);box-shadow:inset 0 0 0 1.5px var(--coral);padding:3px 8px;border-radius:100px;
+}
+.prow .pdest.ok{color:var(--muted);box-shadow:inset 0 0 0 1.5px var(--line)}
+.prow .page{font-size:11px;color:var(--faint);font-weight:600;margin-left:auto}
+.prow .dw{font-size:12.5px}
 
 .dump{
   display:flex;gap:12px;align-items:flex-start;padding:14px 0;
@@ -813,7 +856,7 @@ function load(){
       var o = JSON.parse(raw);
       /* Anything saved before people/routine moved into state is unreadable
          now, so start clean rather than half-render someone else's household. */
-      if(o && o.people && o.routine) return o;
+      if(o && o.people && o.routine) return migrateDumps(o);
     }
   }catch(e){}
   return fresh();
@@ -885,9 +928,10 @@ var DAYORDER = ["mon","tue","wed","thu","fri"];
    informational: if it is on this list, someone has to choose something. */
 function unresolved(){
   var out = [];
-  S.dumps.filter(function(d){ return d.pinned; }).forEach(function(d){
-    out.push({ id:d.id, t:d.text, go:"today", pin:d.id });
-  });
+  S.dumps.filter(function(d){ return d.place && d.place.kind === "today" && d.status === "placed"; })
+    .forEach(function(d){
+      out.push({ id:d.id, t:d.text, go:"today", pin:d.id });
+    });
   S.exc.filter(function(e){ return e.needsCover; }).forEach(function(e){
     var dn = DAYS.filter(function(d){ return d.k === e.day; })[0];
     out.push({ id:e.id, t:(dn ? dn.n : "") + ": " + (e.note || e.label), go:"reset" });
@@ -928,6 +972,7 @@ function sinceReturn(){
    screen and the dimmed nav, so the two can never disagree. */
 function isQuietToday(){
   if(stage() === "prep") return false;
+  if(openOn(todayKey()).length || carriedOver().length) return false;
   return !unresolved().length && !comingUp().length;
 }
 
@@ -993,14 +1038,146 @@ var SPEECH = (function(){
   };
 })();
 
-/* The single place a brain dump is created. If we ever add "Sort this for me",
-   it slots in here, after the dump is already safely saved. */
+/* ==========================================================================
+   WHAT YOU UNLOADED  -  the spine of the app
+   A dump is never destroyed. Sorting it records where it went; finishing it
+   records that. If the app says "you don't need to remember this", it has to
+   be able to answer "so where is it?" later.
+   ========================================================================== */
+
+/* Local YYYY-MM-DD. Never toISOString for a calendar date: it converts to UTC,
+   which shifts the day backwards for anyone east of Greenwich. */
+function ymd(d){
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+
+/* Monday of the week a date falls in. */
+function weekKeyOf(d){
+  var x = new Date(d); var day = x.getDay();
+  x.setDate(x.getDate() + (day === 0 ? -6 : 1 - day));
+  x.setHours(0,0,0,0);
+  return ymd(x);
+}
+function thisWeekKey(){ return weekKeyOf(new Date()); }
+function lastWeekKey(){
+  var d = weekMonday(); d.setDate(d.getDate() - 7);
+  return ymd(d);
+}
+
+/* The single place a brain dump is created. */
 function commitDump(text, source){
   var clean = String(text || "").trim();
   if(!clean) return null;
-  var d = { id:uid(), text:clean, ago:"just now", source:source || "typed" };
+  var d = {
+    id: uid(),
+    text: clean,
+    source: source || "typed",
+    createdAt: new Date().toISOString(),
+    weekOf: thisWeekKey(),
+    status: "floating",   /* floating | placed | done | binned */
+    place: null,          /* { kind, day, refId, note } */
+    doneAt: null
+  };
   S.dumps.unshift(d); save();
   return d;
+}
+
+function dump(id){ return S.dumps.filter(function(d){ return d.id === id; })[0]; }
+function floating(){ return S.dumps.filter(function(d){ return d.status === "floating"; }); }
+function binned(d){ return d.status === "binned"; }
+
+/* Items she put on a specific day of a specific week. */
+function dayItems(dayKey, weekKey){
+  weekKey = weekKey || thisWeekKey();
+  return S.dumps.filter(function(d){
+    return d.place && d.place.kind === "week" && d.place.day === dayKey &&
+           d.weekOf === weekKey && d.status !== "binned";
+  });
+}
+function doneOn(dayKey, weekKey){
+  return dayItems(dayKey, weekKey).filter(function(d){ return d.status === "done"; });
+}
+function openOn(dayKey, weekKey){
+  return dayItems(dayKey, weekKey).filter(function(d){ return d.status !== "done"; });
+}
+
+/* Anything ticked off today, whichever day she had originally put it on.
+   "Done today" has to mean what it says, or ticking something makes it vanish. */
+function doneToday(){
+  var today = ymd(new Date());
+  return S.dumps.filter(function(d){
+    return d.status === "done" && d.doneAt && ymd(new Date(d.doneAt)) === today;
+  });
+}
+
+/* Items from earlier this week that never got ticked. Without this they sink
+   into a past day and the app quietly stops mentioning them, which is exactly
+   the thing it promised not to do. */
+function carriedOver(){
+  var order = ["mon","tue","wed","thu","fri"];
+  var todayIdx = order.indexOf(todayKey());
+  if(todayIdx < 1) return [];
+  var wk = thisWeekKey();
+  return S.dumps.filter(function(d){
+    if(!d.place || d.place.kind !== "week" || d.weekOf !== wk) return false;
+    if(d.status === "done" || d.status === "binned") return false;
+    var i = order.indexOf(d.place.day);
+    return i > -1 && i < todayIdx;
+  });
+}
+
+/* Plain English for where a thing ended up. This is the trust surface: it is
+   what the app can show her when she asks "where did that go?" */
+function whereItWent(d){
+  if(d.status === "binned") return "Binned";
+  if(!d.place) return "Still in the pile";
+  var p = d.place;
+  if(d.status === "done"){
+    if(p.kind === "week"){
+      var wd = DAYS.filter(function(x){ return x.k === p.day; })[0];
+      return "Done " + (wd ? wd.n.slice(0,3) : "");
+    }
+    return "Done";
+  }
+  if(p.note) return p.note;
+  if(p.kind === "week"){
+    var dn = DAYS.filter(function(x){ return x.k === p.day; })[0];
+    return "Sorted into " + (dn ? dn.n : "this week");
+  }
+  if(p.kind === "owns")   return "Now a responsibility";
+  if(p.kind === "return") return "On your return list";
+  if(p.kind === "chaos")  return "In your backup plans";
+  if(p.kind === "today")  return "Pinned to Today";
+  return "Sorted";
+}
+
+/* How long ago, without storing a stale string. */
+function agoLabel(d){
+  if(!d.createdAt) return "";
+  var mins = Math.floor((Date.now() - new Date(d.createdAt)) / 60000);
+  if(mins < 1) return "just now";
+  if(mins < 60) return mins + "m";
+  var h = Math.floor(mins / 60);
+  if(h < 24) return h + "h";
+  var days = Math.floor(h / 24);
+  return days === 1 ? "yesterday" : days + "d";
+}
+
+/* Old saves predate the lifecycle. Bring them forward rather than lose them. */
+function migrateDumps(o){
+  (o.dumps || []).forEach(function(d){
+    if(d.status) return;
+    d.status = "floating";
+    d.place = d.pinned ? { kind:"today" } : null;
+    if(d.pinned) d.status = "placed";
+    d.createdAt = d.createdAt || new Date().toISOString();
+    d.weekOf = d.weekOf || weekKeyOf(new Date(d.createdAt));
+    d.doneAt = null;
+    delete d.pinned;
+  });
+  return o;
 }
 
 /* ---- role dot ---- */
@@ -1030,7 +1207,14 @@ function go(name, opts){
   nav.classList.toggle("hush", name === "today" && isQuietToday());
   var r = {
     today: renderToday, week: renderWeek, owns: renderOwns, chaos: renderChaos,
-    "return": renderReturn, reset: renderReset, share: renderShare, more: renderMore,
+    "return": renderReturn,
+    reset: function(o){
+      /* Arriving fresh always starts at the top of the flow. Only an explicit
+         step (a Back button) resumes mid-way. */
+      if(!o || !("step" in o)) resetStep = 0;
+      renderReset(o);
+    },
+    share: renderShare, more: renderMore,
     onboard: function(){ renderOb(1); }
   }[name];
   if(r) r(opts);
@@ -1103,6 +1287,44 @@ function renderToday(){
       '</dl>';
   }
 
+  /* ---- 1b. WHAT SHE PUT ON TODAY  -  the payoff for sorting something ---- */
+  var mine = openOn(k), did = doneToday(), over = carriedOver();
+  var onToday = "";
+  if(mine.length || over.length){
+    onToday =
+      '<div class="gap"></div>' +
+      '<p class="lab">' + (mine.length ? "You put these on today" : "Still waiting on you") + '</p>' +
+      '<div class="gap-s" style="height:10px"></div>' +
+      '<div class="tlist" id="todayItems">' +
+        mine.map(function(d){ return item(d, ""); }).join("") +
+        over.map(function(d){
+          var dn = DAYS.filter(function(x){ return x.k === d.place.day; })[0];
+          return item(d, dn ? dn.n.slice(0,3) : "");
+        }).join("") +
+      '</div>';
+  }
+  function item(d, from){
+    return '<button data-tick="' + esc(d.id) + '" aria-pressed="false">' +
+      '<span class="box"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span>' +
+      '<span class="t">' + esc(d.text) +
+      (from ? '<span class="from">from ' + esc(from) + '</span>' : '') + '</span></button>';
+  }
+
+  /* Done stays visible. Disappearing work is what makes an app feel untrustworthy. */
+  var doneBlock = "";
+  if(did.length){
+    doneBlock =
+      '<div class="gap-s"></div>' +
+      '<details class="donebox"' + (mine.length ? "" : " open") + '>' +
+        '<summary><span class="lab">Done today</span><span class="dn">' + did.length + '</span></summary>' +
+        '<div class="tlist" id="doneItems">' + did.map(function(d){
+          return '<button data-untick="' + esc(d.id) + '" aria-pressed="true">' +
+            '<span class="box"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span>' +
+            '<span class="t">' + esc(d.text) + '</span></button>';
+        }).join("") + '</div>' +
+      '</details>';
+  }
+
   /* ---- 2. WHAT ISN'T SORTED  (coral: this is the attention state) ---- */
   var needs = "";
   if(un.length && !quiet){
@@ -1135,6 +1357,8 @@ function renderToday(){
         '<p class="carryline mut"><b>' + doneByOthers().length + '</b> are being done by someone else.</p>' +
         '<div class="gap-s" style="height:14px"></div>' +
         '<button class="txtbtn" data-go2="owns">' + esc(t("today.carryCta")) + ' &rarr;</button>' +
+        '<div class="gap-s" style="height:2px"></div>' +
+        '<button class="txtbtn mut" id="todayPile">Everything you have unloaded &rarr;</button>' +
       '</div>';
   }
 
@@ -1188,7 +1412,29 @@ function renderToday(){
     '<div class="gap-s" style="height:12px"></div>' + head +
     '<div class="gap"></div>' +
     (isWeekend ? "" : '<p class="lab">Today</p><div class="gap-s" style="height:10px"></div>') +
-    todayBlock + needs + carry + coming + ending;
+    todayBlock + onToday + doneBlock + needs + carry + coming + ending;
+
+  var tp = $("todayPile");
+  if(tp) tp.onclick = function(){ openPile("all"); };
+
+  /* Ticking is instant and reversible. Nothing here is a score. */
+  Array.prototype.forEach.call(el.querySelectorAll("[data-tick]"), function(b){
+    b.onclick = function(){
+      var d = dump(b.getAttribute("data-tick"));
+      if(!d) return;
+      d.status = "done"; d.doneAt = new Date().toISOString(); save();
+      b.setAttribute("aria-pressed", "true");
+      setTimeout(renderToday, 260);
+    };
+  });
+  Array.prototype.forEach.call(el.querySelectorAll("[data-untick]"), function(b){
+    b.onclick = function(){
+      var d = dump(b.getAttribute("data-untick"));
+      if(!d) return;
+      d.status = "placed"; d.doneAt = null; save();
+      renderToday();
+    };
+  });
 
   function row(label, value, small){
     return '<div class="r"><dt>' + esc(label) + '</dt><dd>' + esc(value) +
@@ -1327,21 +1573,71 @@ function openCapture(){
   }
 }
 
-function openPile(){
+/* Everything she has ever unloaded, and where each thing ended up. This screen
+   is the answer to "I can't find it again", so it never hides anything. */
+var pileFilter = "floating";
+function openPile(f){
+  if(f) pileFilter = f;
+  var all = S.dumps;
+  var groups = {
+    floating: all.filter(function(d){ return d.status === "floating"; }),
+    placed:   all.filter(function(d){ return d.status === "placed"; }),
+    done:     all.filter(function(d){ return d.status === "done"; }),
+    all:      all
+  };
+  var list = groups[pileFilter] || groups.floating;
+
   openSheet(
-    '<h2 class="disp d2">The pile</h2>' +
+    '<h2 class="disp d2">Out of<br>your head</h2>' +
     '<div class="gap-s" style="height:10px"></div>' +
-    '<p class="sub">Captured, not sorted. That is allowed. Turn something into a real thing whenever you feel like it.</p>' +
+    '<p class="sub">Everything you have unloaded, and where it went.</p>' +
     '<div class="gap-s"></div>' +
-    (S.dumps.length ? '<div id="pileList">' + S.dumps.map(function(d){
-      return '<div class="dump" data-pid="' + esc(d.id) + '">' +
-        '<span class="dt">' + esc(d.text) + '</span>' +
-        '<button class="dw" data-sortid="' + esc(d.id) + '" style="color:var(--coral-ink);font-weight:700">Sort &rarr;</button></div>';
-    }).join("") + '</div>' : '<p class="sub">Nothing in the pile.</p>')
+    '<div class="chips" id="pileChips">' +
+      chip("floating", "Still floating", groups.floating.length) +
+      chip("placed", "Sorted", groups.placed.length) +
+      chip("done", "Done", groups.done.length) +
+      chip("all", "Everything", groups.all.length) +
+    '</div>' +
+    '<div class="gap-s"></div>' +
+    (list.length
+      ? '<div id="pileList">' + list.map(row).join("") + '</div>'
+      : '<div class="gap-s"></div><p class="sub">' +
+        (pileFilter === "floating" ? "Nothing floating. That is the good state."
+         : pileFilter === "done" ? "Nothing ticked off yet."
+         : "Nothing here yet.") + '</p>')
   );
-  Array.prototype.forEach.call($("sheet").querySelectorAll("[data-sortid]"), function(b){
-    b.onclick = function(){ sortDump(b.getAttribute("data-sortid")); };
+
+  Array.prototype.forEach.call($("pileChips").querySelectorAll(".chip"), function(b){
+    b.onclick = function(){ openPile(b.getAttribute("data-f")); };
   });
+  Array.prototype.forEach.call($("sheet").querySelectorAll("[data-sortid]"), function(b){
+    b.onclick = function(e){ e.stopPropagation(); sortDump(b.getAttribute("data-sortid")); };
+  });
+  Array.prototype.forEach.call($("sheet").querySelectorAll("[data-goto]"), function(b){
+    b.onclick = function(){
+      closeSheet();
+      go(b.getAttribute("data-goto"));
+    };
+  });
+
+  function chip(k, label, n){
+    return '<button class="chip" data-f="' + k + '" aria-pressed="' + (pileFilter === k) + '">' +
+      esc(label) + (n ? " " + n : "") + '</button>';
+  }
+
+  function row(d){
+    var dest = whereItWent(d);
+    var jump = d.place && { owns:"owns", return:"return", chaos:"chaos", week:"week", today:"today" }[d.place.kind];
+    return '<div class="prow' + (d.status === "done" ? " done" : "") + '">' +
+      '<div class="ptext">' + esc(d.text) + '</div>' +
+      '<div class="pmeta">' +
+        (d.status === "floating"
+          ? '<button class="dw" data-sortid="' + esc(d.id) + '" style="color:var(--coral-ink);font-weight:700">Sort it &rarr;</button>'
+          : '<span class="pdest' + (d.status === "done" ? " ok" : "") + '">' + esc(dest) + '</span>' +
+            (jump ? ' <button class="dw" data-goto="' + jump + '" style="color:var(--coral-ink);font-weight:700">Show me</button>' : '')) +
+        '<span class="page">' + esc(agoLabel(d)) + '</span>' +
+      '</div></div>';
+  }
 }
 
 /* Manual classification only. Nothing here reads the text or guesses. */
@@ -1370,25 +1666,69 @@ function sortDump(id){
   });
   $("sortBin").onclick = function(){ apply("bin"); };
 
+  /* Nothing is deleted here. Sorting records a destination on the item itself,
+     which is what lets the app answer "where did that go?" afterwards. */
   function apply(k){
     if(k === "stay"){ closeSheet(); return; }
-    /* Reminder keeps it in the pile but surfaces it on Today, so the option
-       means something without needing notifications. */
+
+    if(k === "week"){ pickDay(); return; }
+
     if(k === "pin"){
-      d.pinned = true; save(); closeSheet();
-      toast("Pinned to Today.");
-      if(current === "today") renderToday();
+      d.place = { kind:"today" }; d.status = "placed"; save();
+      closeSheet(); toast("Pinned to Today.");
+      refresh();
       return;
     }
-    S.dumps = S.dumps.filter(function(x){ return x.id !== id; });
-    if(k === "owns"){
-      S.resp.push(R("r" + uid(), d.text.charAt(0).toUpperCase() + d.text.slice(1), "Daycare", "me", "me", null));
+    if(k === "bin"){
+      d.status = "binned"; d.place = null; save();
+      closeSheet(); toast("Binned. Still in your history if you need it.");
+      refresh();
+      return;
     }
-    if(k === "return"){ S.retTasks.push({ id:uid(), t:d.text, cat:"Childcare", done:false }); }
-    if(k === "week"){ S.weekNotes = (S.weekNotes || []).concat([{ id:uid(), t:d.text }]); }
-    save(); closeSheet();
-    toast(k === "bin" ? "Gone." : "Moved out of the pile.");
-    if(current === "today") renderToday(); else go(current);
+    if(k === "owns"){
+      var rid = "r" + uid();
+      S.resp.push(R(rid, d.text.charAt(0).toUpperCase() + d.text.slice(1), "Daycare", "me", "me", null));
+      d.place = { kind:"owns", refId:rid };
+    }
+    if(k === "return"){
+      var tid = uid();
+      S.retTasks.push({ id:tid, t:d.text, cat:"Childcare", done:false });
+      d.place = { kind:"return", refId:tid };
+    }
+    if(k === "chaos"){ d.place = { kind:"chaos" }; }
+    d.status = "placed"; save(); closeSheet();
+    toast(whereItWent(d) + ".");
+    refresh();
+  }
+
+  /* "This week" without a day is how things got lost before. */
+  function pickDay(){
+    openSheet(
+      '<p class="lab">This week</p><div class="gap-s" style="height:10px"></div>' +
+      '<h2 class="disp d3">Which day?</h2>' +
+      '<div class="gap-s" style="height:8px"></div>' +
+      '<p class="sub">It will show up on that day, and on Today when the day comes.</p>' +
+      '<div class="gap-s"></div>' +
+      '<div class="daygrid" id="sdDay">' + DAYS.map(function(x){
+        return '<button data-d="' + x.k + '" aria-pressed="false">' + esc(x.n.slice(0,3)) + '</button>';
+      }).join("") + '</div>'
+    );
+    Array.prototype.forEach.call($("sdDay").querySelectorAll("button"), function(b){
+      b.onclick = function(){
+        d.place = { kind:"week", day:b.getAttribute("data-d") };
+        d.status = "placed";
+        d.weekOf = thisWeekKey();
+        save(); closeSheet();
+        toast(whereItWent(d) + ".");
+        refresh();
+      };
+    });
+  }
+
+  function refresh(){
+    if(current === "today") renderToday();
+    else if(current === "week") renderWeek();
+    else go(current);
   }
 }
 
@@ -1582,7 +1922,22 @@ function willOwn(title){
 
 function openHandover(id){
   var r = S.resp.filter(function(x){ return x.id === id; })[0]; if(!r) return;
-  var target = (r.doer && r.doer !== "me") ? r.doer : "victor";
+  /* Default to whoever already does it, otherwise the first real person in the
+     household. Never a hardcoded id: people get generated ids at onboarding. */
+  var others = activePeople().filter(function(p){ return !p.isMe && !p.provider; });
+  var target = (r.doer && r.doer !== "me" && person(r.doer)) ? r.doer
+             : (others[0] ? others[0].id : null);
+  if(!target){
+    openSheet(
+      '<h2 class="disp d3">Nobody to<br>hand it to yet</h2>' +
+      '<div class="gap-s"></div>' +
+      '<p class="sub">Add a partner, a grandparent or whoever else is in the operation, ' +
+        'then you can hand this over.</p>' +
+      '<div class="gap-s"></div>' +
+      '<button class="btn" data-go2="more">Add someone &rarr;</button>'
+    );
+    return;
+  }
   draw();
 
   function draw(){
@@ -1616,7 +1971,17 @@ function openHandover(id){
     $("handGo").onclick = function(){
       r.remember = target; r.doer = target; r.moved = true;
       if(r.backup === target) r.backup = "me";
-      S.handedOver++; save(); closeSheet(); handDone(r, target);
+      S.handedOver++;
+      /* If this responsibility began life as something she unloaded, tell that
+         item what happened to it, so the trail stays unbroken. */
+      S.dumps.forEach(function(d){
+        if(d.place && d.place.refId === r.id){
+          d.place.note = "Handed over to " + pfull(target);
+          d.handedTo = target;
+          d.handedAt = new Date().toISOString();
+        }
+      });
+      save(); closeSheet(); handDone(r, target);
     };
   }
 }
@@ -1708,6 +2073,13 @@ function renderWeek(){
         : '<p class="sub" style="font-size:14.5px">Nothing scheduled.</p>') +
       (exc.length ? '<div style="margin-top:11px;font-size:13.5px;font-weight:600;color:var(--coral-ink)">' +
         exc.map(function(e){ return esc(e.label); }).join(" &middot; ") + '</div>' : '') +
+      /* Anything she sorted onto this day, so sorting has a visible result. */
+      (dayItems(d.k).length
+        ? '<div class="dayitems">' + dayItems(d.k).map(function(it){
+            return '<div class="di' + (it.status === "done" ? " done" : "") + '">' +
+              '<span class="dib" aria-hidden="true"></span>' + esc(it.text) + '</div>';
+          }).join("") + '</div>'
+        : '') +
     '</div>';
     function w(who, what, when){
       return '<div class="w"><b>' + esc(who) + '</b><span>' + esc(what) +
@@ -1832,18 +2204,106 @@ function editDay(k){
 /* ==========================================================================
    SCREEN: SORT MY WEEK
    ========================================================================== */
-var resetStep = 1;
+var resetStep = 0;
 function renderReset(opts){
   if(opts && opts.step) resetStep = opts.step;
   var el = $("s-reset");
-  if(resetStep === 1) step1();
+  if(resetStep === 0) step0();
+  else if(resetStep === 0.5) stepFloating();
+  else if(resetStep === 0.7) stepEmpty();
+  else if(resetStep === 1) step1();
   else if(resetStep === 2) step2();
+  else if(resetStep === 2.5) stepReady();
   else step3();
+
+  /* Step 1 of 7. Looking back before looking forward: the week she just had,
+     including what she handed over, which is the thing worth noticing. */
+  function step0(){
+    var lw = lastWeekKey();
+    var doneLast = S.dumps.filter(function(d){
+      return d.status === "done" && d.weekOf === lw;
+    });
+    var doneThis = S.dumps.filter(function(d){ return d.status === "done" && d.weekOf === thisWeekKey(); });
+    var done = doneLast.concat(doneThis);
+    var handed = S.dumps.filter(function(d){ return d.handedTo; });
+    var nothing = !done.length && !handed.length;
+
+    el.innerHTML =
+      '<div class="top"><p class="lab">Sunday sort &middot; 1 of 7</p></div>' +
+      '<div class="gap-s" style="height:14px"></div>' +
+      '<h1 class="disp d2">Last week</h1>' +
+      '<div class="gap-s"></div>' +
+      '<p class="sub">' + (nothing
+        ? "Nothing ticked off, which is allowed. Some weeks are just survived."
+        : "Before you plan the next one.") + '</p>' +
+      '<div class="gap"></div>' +
+      (done.length
+        ? '<p class="lab">You got through</p><div class="gap-s" style="height:10px"></div>' +
+          done.map(function(d){
+            return '<div class="di done"><span class="dib"></span>' + esc(d.text) + '</div>';
+          }).join("") + '<div class="gap"></div>'
+        : '') +
+      (handed.length
+        ? '<p class="lab">You handed over</p><div class="gap-s" style="height:10px"></div>' +
+          handed.map(function(d){
+            return '<div class="di"><span class="dib"></span>' + esc(d.text) +
+              ' <span style="color:var(--muted);font-weight:500">&middot; ' +
+              esc(pfull(d.handedTo)) + '</span></div>';
+          }).join("") + '<div class="gap"></div>'
+        : '') +
+      '<button class="btn" id="rs0">Next &rarr;</button>';
+    $("rs0").onclick = function(){ resetStep = 0.5; renderReset(); };
+  }
+
+  /* Step 2 of 7. Anything still floating gets a home before the week starts. */
+  function stepFloating(){
+    var f = floating();
+    el.innerHTML =
+      '<div class="top"><p class="lab">Sunday sort &middot; 2 of 7</p></div>' +
+      '<div class="gap-s" style="height:14px"></div>' +
+      '<h1 class="disp d2">What\'s still<br>floating</h1>' +
+      '<div class="gap-s"></div>' +
+      '<p class="sub">' + (f.length
+        ? "These have nowhere to be yet. Give them one, or leave them."
+        : "Nothing floating. Your head is already empty on this one.") + '</p>' +
+      '<div class="gap"></div>' +
+      (f.length ? f.map(function(d){
+        return '<div class="prow"><div class="ptext">' + esc(d.text) + '</div>' +
+          '<div class="pmeta"><button class="dw" data-sortid="' + esc(d.id) +
+          '" style="color:var(--coral-ink);font-weight:700">Sort it &rarr;</button>' +
+          '<span class="page">' + esc(agoLabel(d)) + '</span></div></div>';
+      }).join("") + '<div class="gap"></div>' : '') +
+      '<button class="btn" id="rsF">' + (f.length ? "That's enough for now" : "Next") + ' &rarr;</button>' +
+      '<div style="text-align:center"><button class="txtbtn mut" id="rsFBack">Back</button></div>';
+    Array.prototype.forEach.call(el.querySelectorAll("[data-sortid]"), function(b){
+      b.onclick = function(){ sortDump(b.getAttribute("data-sortid")); };
+    });
+    $("rsF").onclick = function(){ resetStep = 0.7; renderReset(); };
+    $("rsFBack").onclick = function(){ resetStep = 0; renderReset(); };
+  }
+
+  /* Step 3 of 7. One last chance to dump before thinking about next week. */
+  function stepEmpty(){
+    el.innerHTML =
+      '<div class="top"><p class="lab">Sunday sort &middot; 3 of 7</p></div>' +
+      '<div class="gap-s" style="height:14px"></div>' +
+      '<h1 class="disp d2">Empty<br>your head</h1>' +
+      '<div class="gap-s"></div>' +
+      '<p class="sub">Anything nagging you about next week. Messy is fine, you can sort it later.</p>' +
+      '<div class="gap"></div>' +
+      '<button class="btn coral" id="rsDump">Get it out &rarr;</button>' +
+      '<div class="gap-s"></div>' +
+      '<button class="btn ghost" id="rsE">Nothing right now</button>' +
+      '<div style="text-align:center"><button class="txtbtn mut" id="rsEBack">Back</button></div>';
+    $("rsDump").onclick = openCapture;
+    $("rsE").onclick = function(){ resetStep = 1; renderReset(); };
+    $("rsEBack").onclick = function(){ resetStep = 0.5; renderReset(); };
+  }
 
   function step1(){
     var types = ["Late meeting","Appointment","Daycare thing","Different pickup","Different drop-off","Work travel","Someone unavailable","Other chaos"];
     el.innerHTML =
-      '<div class="top"><p class="lab">Sort my week</p></div>' +
+      '<div class="top"><p class="lab">Sunday sort &middot; 4 of 7</p></div>' +
       '<div class="gap-s" style="height:14px"></div>' +
       '<h1 class="disp d2">' + nl(t("reset.title")) + '</h1>' +
       '<div class="gap-s"></div>' +
@@ -1877,7 +2337,7 @@ function renderReset(opts){
 
   function step2(){
     el.innerHTML =
-      '<div class="top"><p class="lab">Sort my week &middot; 2 of 3</p></div>' +
+      '<div class="top"><p class="lab">Sunday sort &middot; 5 of 7</p></div>' +
       '<div class="gap-s" style="height:14px"></div>' +
       '<h1 class="disp d2">Here\'s the week,<br>with the changes in.</h1>' +
       '<div class="gap"></div>' +
@@ -1894,10 +2354,21 @@ function renderReset(opts){
           '</span></div>';
       }).join("") +
       '<div class="gap"></div>' +
-      '<p class="lab">' + esc(t("reset.ready")) + '</p>' +
-      '<div class="gap-s" style="height:6px"></div>' +
-      '<p class="sub" style="font-size:14px">' + esc(t("reset.readySub")) + '</p>' +
-      '<div class="gap-s" style="height:12px"></div>' +
+      '<button class="btn" id="rsCheck">Looks right &rarr;</button>' +
+      '<div style="text-align:center"><button class="txtbtn mut" id="rsBack">Back</button></div>';
+    $("rsBack").onclick = function(){ resetStep = 1; renderReset(); };
+    $("rsCheck").onclick = function(){ resetStep = 2.5; renderReset(); };
+  }
+
+  /* Step 6 of 7. Optional, and hers to edit. */
+  function stepReady(){
+    el.innerHTML =
+      '<div class="top"><p class="lab">Sunday sort &middot; 6 of 7</p></div>' +
+      '<div class="gap-s" style="height:14px"></div>' +
+      '<h1 class="disp d2">' + esc(t("reset.ready")) + '</h1>' +
+      '<div class="gap-s"></div>' +
+      '<p class="sub">' + esc(t("reset.readySub")) + '</p>' +
+      '<div class="gap"></div>' +
       '<div class="tlist" id="rsList">' + S.reset.map(function(c){
         return '<button data-c="' + esc(c.id) + '" aria-pressed="' + c.on + '">' +
           '<span class="box"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span>' +
@@ -1907,7 +2378,7 @@ function renderReset(opts){
       '<button class="txtbtn mut" id="rsEdit">Edit this list</button>' +
       '<div class="gap-s"></div>' +
       '<button class="btn" id="rsDone">Week sorted</button>' +
-      '<div style="text-align:center"><button class="txtbtn mut" id="rsBack">Back</button></div>';
+      '<div style="text-align:center"><button class="txtbtn mut" id="rsRBack">Back</button></div>';
     Array.prototype.forEach.call($("rsList").querySelectorAll("[data-c]"), function(b){
       b.onclick = function(){
         var c = S.reset.filter(function(x){ return x.id === b.getAttribute("data-c"); })[0];
@@ -1915,8 +2386,12 @@ function renderReset(opts){
       };
     });
     $("rsEdit").onclick = editReset;
-    $("rsBack").onclick = function(){ resetStep = 1; renderReset(); };
-    $("rsDone").onclick = function(){ S.resetDone = true; save(); resetStep = 3; renderReset(); };
+    $("rsRBack").onclick = function(){ resetStep = 2; renderReset(); };
+    $("rsDone").onclick = function(){
+      S.resetDone = true;
+      S.lastSortedWeek = thisWeekKey();
+      save(); resetStep = 3; renderReset();
+    };
   }
 
   function step3(){
@@ -2505,6 +2980,8 @@ function renderMore(){
     '<h1 class="disp d1">More</h1>' +
     '<div class="gap"></div>' +
     '<p class="lab">Go to</p><div class="gap-s" style="height:8px"></div>' +
+    '<button class="float" id="morePile"><span class="ft">Out of your head</span>' +
+      '<span class="fa">&rsaquo;</span></button>' +
     items.map(function(i){
       return '<button class="float" data-go2="' + i[1] + '"><span class="ft">' + esc(i[0]) + '</span><span class="fa">&rsaquo;</span></button>';
     }).join("") +
@@ -2566,6 +3043,7 @@ function renderMore(){
   });
   /* Prototype backup: shows the data so it can be copied anywhere. The real
      file download belongs to the hosted build and is a Phase 3 job. */
+  $("morePile").onclick = function(){ openPile("all"); };
   $("moChild").onclick = function(){ editChild(); };
   $("moAddPerson").onclick = function(){ editPerson(null); };
   Array.prototype.forEach.call(el.querySelectorAll("[data-person]"), function(b){
@@ -2925,7 +3403,7 @@ function applyOnboarding(){
 
   if(o.back === "already"){
     S.returnedAlready = true;
-    S.returnStarted = new Date().toISOString().slice(0, 10);
+    S.returnStarted = ymd(new Date());
   } else if(o.back){
     S.returnDate = o.back;
   }
